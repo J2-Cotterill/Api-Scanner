@@ -1,0 +1,72 @@
+from flask import Flask, jsonify, request
+import sqlite3
+
+app = Flask(__name__)
+
+# Simulate a user database 
+conn = sqlite3.connect(':memory:', check_same_thread=False)
+conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)")
+conn.execute("INSERT INTO users (username, password) VALUES ('admin', 'password123')")
+conn.commit()
+
+# Vulnerable route: Missing security headers
+@app.route('/')
+def home():
+    return "Welcome to the vulnerable API!"
+
+# Vulnerable login route: SQL Injection vulnerability
+@app.route('/login', methods=['GET'])
+def login():
+    username = request.args.get('username')
+    password = request.args.get('password')
+    
+    # Vulnerable to SQL Injection
+    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+    cursor = conn.execute(query)
+    user = cursor.fetchone()
+    
+    if user:
+        return jsonify({"message": f"Welcome {username}!"})
+    return jsonify({"error": "Invalid credentials"}), 401
+
+# Sensitive data exposed without authentication
+@app.route('/data', methods=['GET'])
+def data():
+    return jsonify({"data": "This is sensitive data exposed without protection!"})
+
+# Insecure file upload: No validation for uploaded files
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    file = request.files['file']
+    # Vulnerable: No checks on file type, content, or size
+    file.save(f"./uploads/{file.filename}")
+    return jsonify({"message": "File uploaded successfully!"})
+
+# Hardcoded token for authentication (vulnerable)
+@app.route('/secure-data', methods=['GET'])
+def secure_data():
+    token = request.headers.get('Authorization')
+    if token == "hardcoded-token":
+        return jsonify({"data": "Sensitive information accessible with a hardcoded token."})
+    return jsonify({"error": "Unauthorized access"}), 401
+
+# CORS misconfiguration: Allows all origins
+@app.route('/cors-vulnerable', methods=['GET'])
+def cors_vulnerable():
+    response = jsonify({"message": "CORS is not restricted!"})
+    response.headers.add("Access-Control-Allow-Origin", "*")  # Vulnerable to cross-origin attacks
+    return response
+
+# Exposing vulnerable data (sensitive info like passwords)
+@app.route('/vulnerable-data', methods=['GET'])
+def vulnerable_data():
+    sensitive_data = {
+        "username": "admin",
+        "password": "password123",  # Exposed without encryption
+        "email": "admin@example.com",
+        "credit_card": "4111111111111111",  # Sensitive info exposed
+    }
+    return jsonify(sensitive_data)
+
+if __name__ == '__main__':
+    app.run(debug=True)
