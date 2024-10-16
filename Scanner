@@ -1,0 +1,85 @@
+import requests
+
+def check_insecure_headers(url):
+    """Check if security headers are missing."""
+    response = requests.get(url)
+    headers = response.headers
+    issues = []
+    
+    if 'Strict-Transport-Security' not in headers:
+        issues.append("Missing Strict-Transport-Security header")
+    
+    if 'Content-Security-Policy' not in headers:
+        issues.append("Missing Content-Security-Policy header")
+
+    return issues
+
+def check_sql_injection(url, vulnerable_endpoint):
+    """Test for SQL injection vulnerability."""
+    payload = "' OR '1'='1"
+    response = requests.get(f"{url}/{vulnerable_endpoint}?username=admin&password={payload}")
+    print(f"SQLi Response: {response.text}")  
+    if "Welcome" in response.text:
+        return "SQL Injection vulnerability detected"
+    return "No SQL Injection vulnerability"
+
+def check_exposed_data(url, endpoint):
+    """Check if sensitive data is exposed without authentication."""
+    response = requests.get(f"{url}/{endpoint}")
+    print(f"Data Exposure Response: {response.text}")  
+    if "sensitive data" in response.text:
+        return "Sensitive data exposed without authentication"
+    return "Data endpoint seems protected"
+
+def check_hardcoded_token(url, endpoint):
+    """Check if a hardcoded token grants access to secure data."""
+    headers = {"Authorization": "hardcoded-token"}
+    response = requests.get(f"{url}/{endpoint}", headers=headers)
+    print(f"Hardcoded Token Response: {response.text}")  
+    if response.status_code == 200:
+        return "Insecure hardcoded token allows access"
+    return "Hardcoded token does not grant access"
+
+def check_cors_vulnerability(url, endpoint):
+    """Test for CORS misconfiguration allowing any origin."""
+    response = requests.get(f"{url}/{endpoint}")
+    print(f"CORS Response: {response.headers}")  
+    if "Access-Control-Allow-Origin" in response.headers and response.headers["Access-Control-Allow-Origin"] == "*":
+        return "CORS misconfiguration allows any origin"
+    return "CORS configuration seems safe"
+
+def check_exposed_vulnerable_data(url, endpoint):
+    """Check if sensitive data like passwords or credit card info is exposed."""
+    response = requests.get(f"{url}/{endpoint}")
+    print(f"Vulnerable Data Response: {response.text}")   
+    if "password" in response.text and "credit_card" in response.text:
+        return "Sensitive data exposed without encryption"
+    return "No sensitive data exposed"
+
+def run_vulnerability_scan(url):
+    """Run all vulnerability checks on the target URL."""
+    results = {}
+
+    results['headers'] = check_insecure_headers(url)
+
+    results['sql_injection'] = check_sql_injection(url, 'login')
+
+    results['data_exposure'] = check_exposed_data(url, 'data')
+
+    results['hardcoded_token'] = check_hardcoded_token(url, 'secure-data')
+
+    results['cors_vulnerability'] = check_cors_vulnerability(url, 'cors-vulnerable')
+
+    results['vulnerable_data_exposure'] = check_exposed_vulnerable_data(url, 'vulnerable-data')
+
+    return results
+
+
+if __name__ == "__main__":
+    url_to_scan = "https://zellis-cloud123-599d8dcc4407.herokuapp.com"
+    
+   
+    scan_results = run_vulnerability_scan(url_to_scan)
+    
+   
+    print(scan_results)
